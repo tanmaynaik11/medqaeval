@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Env
+.env
+
+# Data & Artifacts (tracked by DVC instead)
+data/raw/
+data/processed/
+artifacts/
+
+# Experiment Tracking
+mlruns/
+wandb/
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/**/*.ipynb
+
+# Logs
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
