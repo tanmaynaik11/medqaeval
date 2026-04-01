@@ -8,8 +8,9 @@ __pycache__/
 # Env
 .env
 
-# Data & Artifacts (tracked by DVC instead)
-data/raw/
+# Data & Artifacts
+# Note: data/raw/ subdirs are gitignored by DVC automatically via data/raw/.gitignore
+# Do NOT add data/raw/ here — it would block DVC's .dvc pointer files from being tracked
 data/processed/
 artifacts/
 

@@ -1,0 +1,6 @@
+outs:
+- md5: fb8717ec25629866da2b1b93fd926128.dir
+  size: 135705033
+  nfiles: 4
+  hash: md5
+  path: medmcqa

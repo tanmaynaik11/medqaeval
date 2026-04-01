@@ -1,0 +1,6 @@
+outs:
+- md5: 3fce86fe814077ac45222865b9891ab5.dir
+  size: 6012273628
+  nfiles: 14
+  hash: md5
+  path: pathvqa
