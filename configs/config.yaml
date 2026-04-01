@@ -1,0 +1,12 @@
+defaults:
+  - data: pathvqa
+  - _self_
+
+project:
+  name: medvision-eval
+  version: "0.1.0"
+
+paths:
+  data_root: data/
+  artifacts: artifacts/
+  logs: logs/

@@ -1,0 +1,5 @@
+# Base data configuration
+image_size: 224
+max_text_length: 512
+num_workers: 2
+seed: 42

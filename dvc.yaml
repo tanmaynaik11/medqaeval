@@ -1,0 +1,16 @@
+stages:
+  download_data:
+    cmd: python scripts/download_data.py
+    deps:
+      - scripts/download_data.py
+      - src/data/ingestion.py
+      - src/data/preprocessing.py
+      - src/data/dataset.py
+    outs:
+      - data/raw/pathvqa
+      - data/raw/medmcqa
+    params:
+      - configs/data/pathvqa.yaml:
+          - max_samples
+      - configs/data/medmcqa.yaml:
+          - max_samples

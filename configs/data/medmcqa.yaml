@@ -1,0 +1,12 @@
+defaults:
+  - base
+
+name: medmcqa
+hf_path: medmcqa
+split_ratios:
+  train: 0.8
+  val: 0.1
+  test: 0.1
+max_samples: 5000
+cache_dir: data/raw/medmcqa
+processed_dir: data/processed/medmcqa
