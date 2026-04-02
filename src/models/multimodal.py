@@ -150,7 +150,6 @@ class MedVisionModel(nn.Module):
         # to GPU explicitly so there's no CPU/GPU device split during forward.
         base_llm.resize_token_embeddings(len(self.tokenizer))
         if config.load_in_4bit:
-            import torch
             base_llm.get_input_embeddings().to(torch.device("cuda:0"))
 
         lora_cfg = LoraConfig(
