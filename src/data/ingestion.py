@@ -1,6 +1,20 @@
 """
 Data ingestion: loads raw datasets from HuggingFace or local disk.
 Supports multimodal (image+text) and text-only medical datasets.
+
+Evaluation data isolation strategy (no leakage):
+  PathVQA    — HF train/val/test splits used as-is.
+               Stage 2 trains on 'train', monitors 'validation'.
+               'test' (~6K samples) held out for final evaluation.
+
+  MedMCQA    — HF has a 'test' split but answers are not publicly released.
+               Stage 1 trains on 'train' (stratified 30K), monitors 'validation' (~4K).
+               'validation' is used for final evaluation (standard for this dataset).
+
+  MedQA-USMLE — HF only has 'train' (~10K) and 'test' (~1.3K).
+               We carve 10% from 'train' as our val_loader during Stage 1.
+               The HF 'test' split is never touched during training and is
+               used exclusively for final benchmark evaluation.
 """
 
 import os
@@ -170,27 +184,53 @@ def load_medmcqa(
 def load_medqausmle(
     cache_dir: str,
     max_samples: Optional[int] = None,
+    val_fraction: float = 0.1,
+    seed: int = 42,
 ) -> DatasetDict:
     """Load MedQA-USMLE-4-options: clinical USMLE-style MCQ (text only).
 
-    No validation split upstream — we use the test split as val.
-    train: ~10,178 samples | test (used as val): ~1,273 samples
+    Split strategy to avoid data leakage during evaluation:
+      train (90%)    → gradient updates during Stage 1 training
+      validation (10% of train) → val_loss monitoring / checkpoint selection
+      test           → completely held out; never seen during training or validation
+
+    HuggingFace only has a 'train' and 'test' split for this dataset.
+    We carve our own validation from 'train' so that 'test' stays
+    untouched for final benchmark evaluation.
+
+    train: ~10,178 | test: ~1,273  (both sourced from HuggingFace)
     """
     logger.info(f"Loading MedQA-USMLE (max_samples={max_samples}) from HuggingFace...")
 
-    train = load_dataset(
+    if max_samples:
+        # For local dev / smoke tests: take a small slice, split it in-memory
+        full_slice = load_dataset(
+            "GBaker/MedQA-USMLE-4-options",
+            split=f"train[:{max_samples}]",
+            cache_dir=cache_dir,
+        )
+        split = full_slice.train_test_split(test_size=val_fraction, seed=seed)
+        train = split["train"]
+        val   = split["test"]
+    else:
+        # Production: load the full HF train split, then carve out validation
+        full_train = load_dataset(
+            "GBaker/MedQA-USMLE-4-options",
+            split="train",
+            cache_dir=cache_dir,
+        )
+        split = full_train.train_test_split(test_size=val_fraction, seed=seed)
+        train = split["train"]
+        val   = split["test"]
+
+    # Load the HF test split — held out completely for final evaluation
+    test = load_dataset(
         "GBaker/MedQA-USMLE-4-options",
-        split=_split_spec(max_samples, "train"),
-        cache_dir=cache_dir,
-    )
-    # Dataset has no validation split — repurpose test as val
-    val = load_dataset(
-        "GBaker/MedQA-USMLE-4-options",
-        split=_split_spec(max_samples, "test", fraction=0.2),
+        split="test",
         cache_dir=cache_dir,
     )
 
-    dataset = DatasetDict({"train": train, "validation": val})
+    dataset = DatasetDict({"train": train, "validation": val, "test": test})
     logger.info(f"Splits: { {k: len(v) for k, v in dataset.items()} }")
     return dataset
 
