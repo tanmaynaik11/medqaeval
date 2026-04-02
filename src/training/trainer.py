@@ -96,12 +96,10 @@ class SFTTrainer:
         self.scheduler = self._build_scheduler(total_steps, warmup_steps)
 
         # ── Device ───────────────────────────────────────────────────────────
-        # QLoRA models are loaded with device_map="auto" — bitsandbytes places
-        # them on GPU at load time. We track the primary device for moving batches.
-        self.device = next(
-            (p.device for p in model.parameters() if p.device.type != "cpu"),
-            torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        )
+        # QLoRA with device_map="auto": quantized layers are on GPU but the
+        # resized embedding table stays on CPU — so next(model.parameters()).device
+        # returns cpu. Always target cuda:0 explicitly for batch movement.
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         # Store dataloaders without Accelerate wrapping (incompatible with device_map="auto")
         self.train_loader = train_loader
