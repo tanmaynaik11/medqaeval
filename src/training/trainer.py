@@ -165,14 +165,12 @@ class SFTTrainer:
 
         self.optimizer.zero_grad()
 
-        logger.info(f"  device={self.device}  batches={len(self.train_loader)}")
+        logger.info(f"  batches={len(self.train_loader)}")
         for step, batch in enumerate(self.train_loader):
-            logger.info(f"  got batch {step}, input_ids={batch['input_ids'].shape}")
-            batch = self._move_batch(batch)
-            logger.info(f"  batch moved to {self.device}")
-
+            logger.info(f"  step {step} — forward...")
+            # device_map="auto" handles inter-layer device movement internally.
+            # Do NOT move batch tensors manually — pass them from CPU as-is.
             with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                logger.info(f"  running forward...")
                 outputs = self.model(
                     input_ids      = batch["input_ids"],
                     attention_mask = batch["attention_mask"],
@@ -241,7 +239,6 @@ class SFTTrainer:
         num_batches = 0
 
         for batch in self.val_loader:
-            batch = self._move_batch(batch)
             with torch.amp.autocast("cuda", dtype=torch.bfloat16):
                 outputs = self.model(
                     input_ids      = batch["input_ids"],
