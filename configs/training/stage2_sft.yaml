@@ -43,7 +43,7 @@ training:
   save_steps:            200
   eval_steps:            200
   logging_steps:         25
-  dataloader_workers:    2         # fewer workers — image loading is heavier
+  dataloader_workers:    0         # multiprocessing deadlocks in RunPod containers
   seed:                  42
 
 wandb:

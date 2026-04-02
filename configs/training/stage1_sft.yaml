@@ -44,7 +44,7 @@ training:
   save_steps:            500
   eval_steps:            500
   logging_steps:         25
-  dataloader_workers:    4
+  dataloader_workers:    0   # multiprocessing deadlocks in RunPod containers
   seed:                  42
 
 wandb:
