@@ -3,10 +3,13 @@ defaults:
 
 name: medmcqa
 hf_path: medmcqa
-split_ratios:
-  train: 0.8
-  val: 0.1
-  test: 0.1
-max_samples: 5000
 cache_dir: data/raw/medmcqa
 processed_dir: data/processed/medmcqa
+
+# Local dev: fast cap via split-slicing (no full download)
+max_samples: 200
+
+# RunPod production: set max_samples to null and use this instead
+# Downloads full 182K train set, then stratifies across 21 medical subjects
+stratified_n: null   # set to 30000 on RunPod
+seed: 42

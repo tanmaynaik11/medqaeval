@@ -1,0 +1,14 @@
+# ── Local dev (CPU, fast) ──────────────────────────────────────────────────────
+# encoder_type: clip
+# model_id: openai/clip-vit-base-patch32
+# hidden_dim: 768
+# num_patches: 49       # (224/32)^2
+
+# ── Production (RunPod) ────────────────────────────────────────────────────────
+encoder_type: biomedclip
+model_id: microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224
+hidden_dim: 768          # ViT-B/16 patch embedding dim
+num_patches: 196         # (224/16)^2
+image_size: 224
+frozen: true             # always freeze — only projection + LoRA train
+cache_dir: artifacts/model_cache

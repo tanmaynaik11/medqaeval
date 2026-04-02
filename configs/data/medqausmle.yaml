@@ -1,0 +1,8 @@
+defaults:
+  - base
+
+name: medqa-usmle
+hf_path: GBaker/MedQA-USMLE-4-options
+max_samples: 500          # local dev cap; use null on RunPod for full ~10K
+cache_dir: data/raw/medqausmle
+processed_dir: data/processed/medqausmle

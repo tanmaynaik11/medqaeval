@@ -1,0 +1,53 @@
+# ── Stage 1: Medical Text SFT ─────────────────────────────────────────────────
+# Trains LoRA adapters on clinical text only (no images).
+# Teaches the LLM medical reasoning, USMLE logic, MCQ format.
+# Run on RunPod RTX 4090 (~6-8 hrs) or A100 40GB (~3-4 hrs).
+
+model:
+  encoder_type:          biomedclip
+  vision_hidden_dim:     768
+  llm_model_id:          Qwen/Qwen2-7B-Instruct
+  llm_hidden_dim:        3584
+  proj_hidden_dim:       1024
+  proj_num_layers:       2
+  proj_dropout:          0.0
+  lora_r:                16
+  lora_alpha:            32
+  lora_dropout:          0.05
+  lora_target_modules:   [q_proj, k_proj, v_proj, o_proj]
+  load_in_4bit:          true
+  bnb_4bit_quant_type:   nf4
+  bnb_4bit_compute_dtype: bfloat16
+  cache_dir:             artifacts/model_cache
+
+data:
+  medmcqa_cache:         data/raw/medmcqa
+  medqausmle_cache:      data/raw/medqausmle
+  medmcqa_stratified_n:  30000     # stratified across 21 subjects
+  medqausmle_max:        null      # use all ~10K
+  max_length:            512
+  val_fraction:          0.05      # hold out 5% for validation
+
+training:
+  stage:                 1
+  output_dir:            artifacts/checkpoints/stage1
+  num_epochs:            3
+  per_device_batch_size: 4
+  gradient_accumulation: 8         # effective batch size = 32
+  lora_lr:               2.0e-4
+  projection_lr:         0.0       # projection not trained in stage 1
+  weight_decay:          0.01
+  lr_scheduler:          cosine
+  warmup_ratio:          0.05
+  max_grad_norm:         1.0
+  bf16:                  true
+  save_steps:            500
+  eval_steps:            500
+  logging_steps:         25
+  dataloader_workers:    4
+  seed:                  42
+
+wandb:
+  project:   medvision-eval
+  run_name:  stage1-text-sft
+  tags:      [stage1, text-sft, medmcqa, usmle]

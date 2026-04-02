@@ -1,0 +1,15 @@
+# Local dev: gpt2 (CPU, 500MB) — matches hidden_dim=768 of CLIP/BiomedCLIP
+# Production: Qwen/Qwen2-VL-7B-Instruct (hidden_dim=3584)
+model_id: openai-community/gpt2
+hidden_dim: 768          # gpt2=768 | Qwen2-VL-7B=3584
+max_length: 512
+cache_dir: artifacts/model_cache
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules:
+    - c_attn            # GPT-2  (swap → q_proj,v_proj,k_proj for Qwen2-VL)
+  bias: none
+  task_type: CAUSAL_LM

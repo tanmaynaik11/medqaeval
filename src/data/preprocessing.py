@@ -80,6 +80,25 @@ def preprocess_pathvqa_sample(sample: dict, image_size: int = 224) -> dict:
     }
 
 
+def preprocess_medqausmle_sample(sample: dict) -> dict:
+    """Map a raw MedQA-USMLE sample to model-ready format.
+
+    Raw schema:
+        question   : str
+        options    : {"A": "...", "B": "...", "C": "...", "D": "..."}
+        answer_idx : "A" | "B" | "C" | "D"
+        answer     : str  (full text of correct option)
+    """
+    options = sample.get("options", {})
+    answer_key = sample.get("answer_idx", "").upper()
+    options_lower = {k.lower(): v for k, v in options.items()}
+    return {
+        "prompt": build_mcqa_prompt(sample["question"], options_lower, answer_key.lower()),
+        "label": answer_key,
+        "source": "medqa-usmle",
+    }
+
+
 def preprocess_medmcqa_sample(sample: dict) -> dict:
     """Map a raw MedMCQA sample to model-ready format."""
     options = {

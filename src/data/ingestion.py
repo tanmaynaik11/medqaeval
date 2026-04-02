@@ -4,13 +4,79 @@ Supports multimodal (image+text) and text-only medical datasets.
 """
 
 import os
+import math
+import random
 import logging
 from pathlib import Path
 from typing import Optional
+from collections import defaultdict
 
-from datasets import load_dataset, DatasetDict
+from datasets import load_dataset, DatasetDict, Dataset
 
 logger = logging.getLogger(__name__)
+
+
+def _stratified_sample(
+    dataset: Dataset,
+    field: str,
+    n_samples: int,
+    seed: int = 42,
+) -> Dataset:
+    """Sample exactly n_samples from a HuggingFace Dataset, stratified by `field`.
+
+    Uses the largest remainder method to guarantee the output is exactly
+    n_samples rows while preserving class proportions as closely as possible.
+    Plain floor-rounding loses rows when remainders accumulate across classes.
+
+    Args:
+        dataset:   HuggingFace Dataset to sample from.
+        field:     Column name to stratify on (e.g. "subject_name").
+        n_samples: Total samples to return (exact).
+        seed:      Random seed for reproducibility.
+
+    Returns:
+        A new Dataset with exactly n_samples rows.
+    """
+    # Group row indices by class
+    class_indices: dict[str, list[int]] = defaultdict(list)
+    for i, value in enumerate(dataset[field]):
+        class_indices[str(value)].append(i)
+
+    total = len(dataset)
+
+    # Compute exact floating-point quota per class
+    exact_quotas = {
+        cls: (len(idxs) / total) * n_samples
+        for cls, idxs in class_indices.items()
+    }
+
+    # Floor quotas — this is where rows go missing
+    floor_quotas: dict[str, int] = {cls: math.floor(q) for cls, q in exact_quotas.items()}
+
+    # Largest remainder method: give +1 to the classes with the biggest fractional parts
+    # until we've distributed all n_samples
+    n_remaining = n_samples - sum(floor_quotas.values())
+    ranked = sorted(exact_quotas, key=lambda c: exact_quotas[c] - floor_quotas[c], reverse=True)
+    for cls in ranked[:n_remaining]:
+        floor_quotas[cls] += 1
+
+    # Shuffle each class's indices and take the allocated quota
+    selected: list[int] = []
+    for cls in sorted(class_indices):
+        indices = class_indices[cls]
+        n_cls = min(floor_quotas[cls], len(indices))   # safety: never exceed class size
+        rng = random.Random(seed)
+        rng.shuffle(indices)
+        selected.extend(indices[:n_cls])
+
+    # Final global shuffle for training randomness
+    random.Random(seed).shuffle(selected)
+
+    logger.info(
+        f"Stratified sample: {len(selected)} rows from {total} "
+        f"across {len(class_indices)} classes ({field})"
+    )
+    return dataset.select(selected)
 
 
 def _split_spec(max_samples: Optional[int], split: str, fraction: float = 1.0) -> str:
@@ -58,15 +124,38 @@ def load_pathvqa(
 def load_medmcqa(
     cache_dir: str,
     max_samples: Optional[int] = None,
+    stratified_n: Optional[int] = None,
+    seed: int = 42,
 ) -> DatasetDict:
-    """Load MedMCQA: medical multiple-choice questions (text only)."""
-    logger.info(f"Loading MedMCQA (max_samples={max_samples}) from HuggingFace...")
+    """Load MedMCQA: medical multiple-choice questions (text only).
 
-    train = load_dataset(
-        "medmcqa",
-        split=_split_spec(max_samples, "train"),
-        cache_dir=cache_dir,
-    )
+    Two sampling modes — use one, not both:
+      max_samples:  fast dev cap via HF split-slicing (no full download).
+      stratified_n: download full train set, then sample proportionally
+                    across all 21 medical subjects. Use this on RunPod.
+
+    Args:
+        cache_dir:    Local cache directory.
+        max_samples:  Quick cap for local development.
+        stratified_n: Subject-stratified sample size for production (~30_000).
+        seed:         Random seed for stratified sampling reproducibility.
+    """
+    if stratified_n:
+        logger.info(
+            f"Loading full MedMCQA train for stratified sampling "
+            f"(target={stratified_n}) from HuggingFace..."
+        )
+        train_full = load_dataset("medmcqa", split="train", cache_dir=cache_dir)
+        train = _stratified_sample(train_full, field="subject_name",
+                                   n_samples=stratified_n, seed=seed)
+    else:
+        logger.info(f"Loading MedMCQA (max_samples={max_samples}) from HuggingFace...")
+        train = load_dataset(
+            "medmcqa",
+            split=_split_spec(max_samples, "train"),
+            cache_dir=cache_dir,
+        )
+
     val = load_dataset(
         "medmcqa",
         split=_split_spec(max_samples, "validation", fraction=0.2),
@@ -78,10 +167,39 @@ def load_medmcqa(
     return dataset
 
 
+def load_medqausmle(
+    cache_dir: str,
+    max_samples: Optional[int] = None,
+) -> DatasetDict:
+    """Load MedQA-USMLE-4-options: clinical USMLE-style MCQ (text only).
+
+    No validation split upstream — we use the test split as val.
+    train: ~10,178 samples | test (used as val): ~1,273 samples
+    """
+    logger.info(f"Loading MedQA-USMLE (max_samples={max_samples}) from HuggingFace...")
+
+    train = load_dataset(
+        "GBaker/MedQA-USMLE-4-options",
+        split=_split_spec(max_samples, "train"),
+        cache_dir=cache_dir,
+    )
+    # Dataset has no validation split — repurpose test as val
+    val = load_dataset(
+        "GBaker/MedQA-USMLE-4-options",
+        split=_split_spec(max_samples, "test", fraction=0.2),
+        cache_dir=cache_dir,
+    )
+
+    dataset = DatasetDict({"train": train, "validation": val})
+    logger.info(f"Splits: { {k: len(v) for k, v in dataset.items()} }")
+    return dataset
+
+
 # Registry — add new datasets here as you onboard them
 DATASET_REGISTRY = {
-    "path-vqa": load_pathvqa,
-    "medmcqa": load_medmcqa,
+    "path-vqa":    load_pathvqa,
+    "medmcqa":     load_medmcqa,
+    "medqa-usmle": load_medqausmle,
 }
 
 
