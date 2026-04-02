@@ -145,12 +145,7 @@ class MedVisionModel(nn.Module):
             )
 
         # Resize embeddings to include the new <image> token.
-        # resize_token_embeddings adds new rows on CPU even when the rest of
-        # the model is on GPU (device_map="auto"). Move the embedding table
-        # to GPU explicitly so there's no CPU/GPU device split during forward.
         base_llm.resize_token_embeddings(len(self.tokenizer))
-        if config.load_in_4bit:
-            base_llm.get_input_embeddings().to(torch.device("cuda:0"))
 
         lora_cfg = LoraConfig(
             r=config.lora_r,
