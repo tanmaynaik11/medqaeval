@@ -132,6 +132,11 @@ class BiomedCLIPEncoder(nn.Module):
                 p.requires_grad = False
             logger.info("BiomedCLIP encoder frozen — excluded from gradient updates.")
 
+        # Move vision encoder to GPU if available so pixel_values and weights
+        # are on the same device during the forward pass.
+        if torch.cuda.is_available():
+            self.clip = self.clip.cuda()
+
     def _extract_patch_embeddings(self, pixel_values: torch.Tensor) -> torch.Tensor:
         """
         Extract all patch tokens via TimmModel's trunk.forward_features().
