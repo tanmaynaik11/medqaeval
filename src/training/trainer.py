@@ -23,7 +23,6 @@ import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from accelerate import Accelerator
 from accelerate.utils import set_seed
 
 logger = logging.getLogger(__name__)
@@ -66,21 +65,11 @@ class SFTTrainer:
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Accelerate handles device placement and mixed precision
-        self.accelerator = Accelerator(
-            gradient_accumulation_steps=gradient_accumulation,
-            mixed_precision="bf16",
-            log_with="wandb" if use_wandb else None,
-        )
+        set_seed(seed)
 
         if use_wandb:
-            self.accelerator.init_trackers(
-                project_name=wandb_project,
-                config={"run_name": wandb_run_name},
-                init_kwargs={"wandb": {"name": wandb_run_name}},
-            )
-
-        set_seed(seed)
+            import wandb
+            wandb.init(project=wandb_project, name=wandb_run_name)
 
         # ── Optimizer — separate LR per parameter group ───────────────────────
         # LoRA adapters and projection have different roles:
@@ -106,17 +95,17 @@ class SFTTrainer:
         warmup_steps = int(total_steps * warmup_ratio)
         self.scheduler = self._build_scheduler(total_steps, warmup_steps)
 
-        # ── Prepare with Accelerate ───────────────────────────────────────────
-        # Note: for QLoRA models loaded with device_map="auto", the model is
-        # already on GPU. We prepare only optimizer and dataloaders.
-        (
-            self.optimizer,
-            self.train_loader,
-            self.val_loader,
-            self.scheduler,
-        ) = self.accelerator.prepare(
-            self.optimizer, train_loader, val_loader, self.scheduler
+        # ── Device ───────────────────────────────────────────────────────────
+        # QLoRA models are loaded with device_map="auto" — bitsandbytes places
+        # them on GPU at load time. We track the primary device for moving batches.
+        self.device = next(
+            (p.device for p in model.parameters() if p.device.type != "cpu"),
+            torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         )
+
+        # Store dataloaders without Accelerate wrapping (incompatible with device_map="auto")
+        self.train_loader = train_loader
+        self.val_loader   = val_loader
 
         self.global_step  = 0
         self.best_val_loss = float("inf")
@@ -160,7 +149,15 @@ class SFTTrainer:
         logger.info("Training complete. Final checkpoint saved.")
 
         if self.use_wandb:
-            self.accelerator.end_training()
+            import wandb
+            wandb.finish()
+
+    def _move_batch(self, batch: dict) -> dict:
+        """Move batch tensors to the model's primary device."""
+        return {
+            k: v.to(self.device) if isinstance(v, torch.Tensor) else v
+            for k, v in batch.items()
+        }
 
     def _train_epoch(self, epoch: int) -> float:
         self.model.train()
@@ -168,30 +165,36 @@ class SFTTrainer:
         num_batches   = 0
         accum_loss    = 0.0
 
+        self.optimizer.zero_grad()
+
         for step, batch in enumerate(self.train_loader):
-            with self.accelerator.accumulate(self.model):
+            batch = self._move_batch(batch)
+
+            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
                 outputs = self.model(
                     input_ids      = batch["input_ids"],
                     attention_mask = batch["attention_mask"],
                     pixel_values   = batch.get("pixel_values"),
                     labels         = batch["labels"],
                 )
-                loss = outputs.loss
-                self.accelerator.backward(loss)
+                # Scale loss by grad_accum so gradients average correctly
+                loss = outputs.loss / self.grad_accum
 
-                if self.accelerator.sync_gradients:
-                    self.accelerator.clip_grad_norm_(
-                        self.model.parameters(), self.max_grad_norm
-                    )
+            loss.backward()
 
+            accum_loss  += outputs.loss.detach().item()
+            total_loss  += outputs.loss.detach().item()
+            num_batches += 1
+            self.global_step += 1
+
+            # Optimizer step every grad_accum batches
+            if (step + 1) % self.grad_accum == 0:
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.max_grad_norm
+                )
                 self.optimizer.step()
                 self.scheduler.step()
                 self.optimizer.zero_grad()
-
-            accum_loss  += loss.detach().item()
-            total_loss  += loss.detach().item()
-            num_batches += 1
-            self.global_step += 1
 
             # Logging
             if self.global_step % self.logging_steps == 0:
@@ -200,7 +203,8 @@ class SFTTrainer:
                 logger.info(f"  step {self.global_step:5d} | "
                             f"loss {avg_loss:.4f} | lr {lr:.2e}")
                 if self.use_wandb:
-                    self.accelerator.log({
+                    import wandb
+                    wandb.log({
                         "train/loss": avg_loss,
                         "train/lr":   lr,
                         "train/step": self.global_step,
@@ -217,7 +221,8 @@ class SFTTrainer:
                 val_loss = self._evaluate()
                 logger.info(f"  [eval] step {self.global_step} | val_loss {val_loss:.4f}")
                 if self.use_wandb:
-                    self.accelerator.log({"val/loss": val_loss}, step=self.global_step)
+                    import wandb
+                    wandb.log({"val/loss": val_loss}, step=self.global_step)
                 if val_loss < self.best_val_loss:
                     self.best_val_loss = val_loss
                     self._save_checkpoint("best")
@@ -234,12 +239,14 @@ class SFTTrainer:
         num_batches = 0
 
         for batch in self.val_loader:
-            outputs = self.model(
-                input_ids      = batch["input_ids"],
-                attention_mask = batch["attention_mask"],
-                pixel_values   = batch.get("pixel_values"),
-                labels         = batch["labels"],
-            )
+            batch = self._move_batch(batch)
+            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+                outputs = self.model(
+                    input_ids      = batch["input_ids"],
+                    attention_mask = batch["attention_mask"],
+                    pixel_values   = batch.get("pixel_values"),
+                    labels         = batch["labels"],
+                )
             total_loss  += outputs.loss.item()
             num_batches += 1
 
@@ -256,7 +263,7 @@ class SFTTrainer:
         ckpt_dir = self.output_dir / tag
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-        unwrapped = self.accelerator.unwrap_model(self.model)
+        unwrapped = self.model
 
         # Save LoRA adapters (PEFT format — can be loaded with PeftModel.from_pretrained)
         unwrapped.llm.save_pretrained(str(ckpt_dir / "lora_adapters"))
