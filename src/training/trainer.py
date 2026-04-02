@@ -172,12 +172,18 @@ class SFTTrainer:
             # No manual device movement or autocast — bitsandbytes 4-bit handles
             # bf16 compute internally and torch.amp.autocast triggers CUDA lazy
             # init which hangs on some RunPod driver configurations.
-            outputs = self.model(
-                input_ids      = batch["input_ids"],
-                attention_mask = batch["attention_mask"],
-                pixel_values   = batch.get("pixel_values"),
-                labels         = batch["labels"],
-            )
+            try:
+                outputs = self.model(
+                    input_ids      = batch["input_ids"],
+                    attention_mask = batch["attention_mask"],
+                    pixel_values   = batch.get("pixel_values"),
+                    labels         = batch["labels"],
+                )
+                logger.info(f"  forward done, loss={outputs.loss.item():.4f}")
+            except Exception as e:
+                logger.error(f"  FORWARD FAILED: {type(e).__name__}: {e}")
+                import traceback; traceback.print_exc()
+                raise
             # Scale loss by grad_accum so gradients average correctly
             loss = outputs.loss / self.grad_accum
 
