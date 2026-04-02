@@ -1,6 +1,9 @@
 # Core ML
-torch>=2.1.0
-torchvision>=0.16.0
+# torch and torchvision are NOT listed here — they must be installed with the
+# correct CUDA index URL for the target machine. Installing from PyPI gives a
+# CPU-only build which silently overwrites any pre-installed CUDA torch.
+# RunPod: pip install torch==2.2.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cu121
+# Local CPU dev: pip install torch torchvision
 transformers>=4.40.0
 datasets>=2.18.0
 accelerate>=0.28.0

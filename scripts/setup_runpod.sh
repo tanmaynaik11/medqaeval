@@ -27,11 +27,16 @@ fi
 cd medvision-eval
 
 # ── 2. Install dependencies into system Python ────────────────────────────────
-# RunPod PyTorch templates pre-install torch/CUDA at the system level.
-# We install into system Python directly with --ignore-installed to skip
-# OS-managed packages (blinker, charset-normalizer) without breaking anything.
 echo "[2/5] Installing dependencies..."
 pip install --upgrade pip --quiet
+
+# Install CUDA torch FIRST with the correct index URL.
+# PyPI torch is CPU-only — it silently overwrites RunPod's pre-installed CUDA
+# torch if listed in requirements.txt, causing the model to run on CPU.
+pip install torch==2.2.0 torchvision==0.17.0 \
+    --index-url https://download.pytorch.org/whl/cu121 \
+    --quiet
+
 pip install -r requirements-gpu.txt \
     --ignore-installed blinker charset-normalizer \
     --quiet
