@@ -165,10 +165,14 @@ class SFTTrainer:
 
         self.optimizer.zero_grad()
 
+        logger.info(f"  device={self.device}  batches={len(self.train_loader)}")
         for step, batch in enumerate(self.train_loader):
+            logger.info(f"  got batch {step}, input_ids={batch['input_ids'].shape}")
             batch = self._move_batch(batch)
+            logger.info(f"  batch moved to {self.device}")
 
             with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+                logger.info(f"  running forward...")
                 outputs = self.model(
                     input_ids      = batch["input_ids"],
                     attention_mask = batch["attention_mask"],
