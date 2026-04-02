@@ -158,6 +158,12 @@ class MedVisionModel(nn.Module):
         self.llm = get_peft_model(base_llm, lora_cfg)
         self.llm.print_trainable_parameters()
 
+        # Move non-LLM components to GPU.
+        # The LLM is already on GPU via device_map="auto" (bitsandbytes).
+        # projection and vision_encoder stay on CPU by default — move them.
+        if torch.cuda.is_available():
+            self.projection = self.projection.cuda()
+
     # ── Embedding helpers ─────────────────────────────────────────────────────
 
     def _get_text_embeddings(self, input_ids: torch.Tensor) -> torch.Tensor:
