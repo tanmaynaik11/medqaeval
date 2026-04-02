@@ -96,10 +96,10 @@ class SFTTrainer:
         self.scheduler = self._build_scheduler(total_steps, warmup_steps)
 
         # ── Device ───────────────────────────────────────────────────────────
-        # With device_map="auto", layers are spread across devices by bitsandbytes.
-        # Input ids must go to the same device as the embedding table.
-        # We find that device here and use it to move batches consistently.
-        self.device = model.llm.get_base_model().get_input_embeddings().weight.device
+        # device_map="auto" places the embedding table on cuda:0.
+        # DataLoader returns CPU tensors — move input_ids/attention_mask/labels
+        # to cuda:0 before each forward pass.
+        self.device = torch.device("cuda:0")
 
         # Store dataloaders without Accelerate wrapping (incompatible with device_map="auto")
         self.train_loader = train_loader
@@ -168,22 +168,14 @@ class SFTTrainer:
         logger.info(f"  batches={len(self.train_loader)}")
         for step, batch in enumerate(self.train_loader):
             logger.info(f"  step {step} — forward...")
-            # device_map="auto" handles inter-layer device movement internally.
-            # No manual device movement or autocast — bitsandbytes 4-bit handles
-            # bf16 compute internally and torch.amp.autocast triggers CUDA lazy
-            # init which hangs on some RunPod driver configurations.
-            try:
-                outputs = self.model(
-                    input_ids      = batch["input_ids"],
-                    attention_mask = batch["attention_mask"],
-                    pixel_values   = batch.get("pixel_values"),
-                    labels         = batch["labels"],
-                )
-                logger.info(f"  forward done, loss={outputs.loss.item():.4f}")
-            except Exception as e:
-                logger.error(f"  FORWARD FAILED: {type(e).__name__}: {e}")
-                import traceback; traceback.print_exc()
-                raise
+            batch = self._move_batch(batch)
+            outputs = self.model(
+                input_ids      = batch["input_ids"],
+                attention_mask = batch["attention_mask"],
+                pixel_values   = batch.get("pixel_values"),
+                labels         = batch["labels"],
+            )
+            logger.info(f"  forward done, loss={outputs.loss.item():.4f}")
             # Scale loss by grad_accum so gradients average correctly
             loss = outputs.loss / self.grad_accum
 
@@ -246,6 +238,7 @@ class SFTTrainer:
         num_batches = 0
 
         for batch in self.val_loader:
+            batch = self._move_batch(batch)
             outputs = self.model(
                 input_ids      = batch["input_ids"],
                 attention_mask = batch["attention_mask"],
