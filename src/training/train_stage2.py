@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader
 from peft import PeftModel
 
 from src.utils.logging import setup_logging
+from src.utils.env import load_env
 from src.utils.reproducibility import seed_everything
 from src.data.ingestion import load_dataset_by_name
 from src.data.collator import MedicalCollator
@@ -28,6 +29,7 @@ from src.training.trainer import SFTTrainer
 
 setup_logging(level="INFO", log_file="logs/stage2_sft.log")
 logger = logging.getLogger(__name__)
+load_env()
 
 
 def parse_args():

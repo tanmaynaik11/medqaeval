@@ -18,6 +18,7 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader, random_split
 
 from src.utils.logging import setup_logging
+from src.utils.env import load_env
 from src.utils.reproducibility import seed_everything
 from src.data.ingestion import load_dataset_by_name
 from src.data.preprocessing import preprocess_medmcqa_sample, preprocess_medqausmle_sample
@@ -28,6 +29,7 @@ from src.training.trainer import SFTTrainer
 
 setup_logging(level="INFO", log_file="logs/stage1_sft.log")
 logger = logging.getLogger(__name__)
+load_env()
 
 
 def parse_args():

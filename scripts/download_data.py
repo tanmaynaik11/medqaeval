@@ -14,8 +14,8 @@ from src.data.ingestion import load_dataset_by_name
 from src.data.preprocessing import preprocess_pathvqa_sample, preprocess_medmcqa_sample
 from src.data.dataset import MedVQADataset, MedTextDataset
 
-from dotenv import load_dotenv
-load_dotenv()
+from src.utils.env import load_env
+load_env()
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
