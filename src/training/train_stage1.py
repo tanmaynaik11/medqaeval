@@ -53,6 +53,7 @@ def main():
         cfg.training.save_steps             = 999999
         cfg.training.eval_steps             = 999999
         cfg.training.logging_steps          = 1
+        cfg.training.dataloader_workers     = 0  # avoid multiprocessing deadlocks in containers
 
     # ── 1. Load data ──────────────────────────────────────────────────────────
     logger.info("Loading datasets...")
