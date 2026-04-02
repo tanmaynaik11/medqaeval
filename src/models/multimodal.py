@@ -135,7 +135,7 @@ class MedVisionModel(nn.Module):
             # prepare_model_for_kbit_training: enables gradient checkpointing,
             # casts LayerNorm to fp32 (stable), freezes non-LoRA params
             base_llm = prepare_model_for_kbit_training(
-                base_llm, use_gradient_checkpointing=True
+                base_llm, use_gradient_checkpointing=False
             )
             logger.info("LLM loaded in 4-bit NF4 (QLoRA mode).")
         else:
