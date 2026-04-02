@@ -25,15 +25,15 @@ data:
   medqausmle_cache:      data/raw/medqausmle
   medmcqa_stratified_n:  30000     # stratified across 21 subjects
   medqausmle_max:        null      # use all ~10K
-  max_length:            512
+  max_length:            256
   val_fraction:          0.05      # hold out 5% for validation
 
 training:
   stage:                 1
   output_dir:            artifacts/checkpoints/stage1
   num_epochs:            3
-  per_device_batch_size: 4
-  gradient_accumulation: 8         # effective batch size = 32
+  per_device_batch_size: 1
+  gradient_accumulation: 32        # effective batch size = 32
   lora_lr:               2.0e-4
   projection_lr:         0.0       # projection not trained in stage 1
   weight_decay:          0.01
