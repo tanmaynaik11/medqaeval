@@ -5,12 +5,18 @@
 bitsandbytes>=0.43.0          # 4-bit / 8-bit quantization for QLoRA
 
 # ── Training efficiency ───────────────────────────────────────────────────────
-flash-attn>=2.5.0             # FlashAttention-2 for faster attention on A100/H100
-                              # Install separately: pip install flash-attn --no-build-isolation
+# flash-attn is NOT listed here because its setup.py imports torch at build time,
+# which fails inside pip's isolated build environment.
+# Install manually AFTER torch is confirmed available:
+#   pip install flash-attn --no-build-isolation
+# Only meaningful on A100/H100 — skip on RTX 4090.
+
 deepspeed>=0.14.0             # ZeRO optimizer (optional, for multi-GPU)
 
 # ── W&B experiment tracking ───────────────────────────────────────────────────
-wandb>=0.16.0                 # already in base but listed explicitly for clarity
+wandb>=0.16.0
 
 # ── Inference ─────────────────────────────────────────────────────────────────
-vllm>=0.4.0                   # fast inference for evaluation after training
+# vllm is also excluded here — it bundles its own torch build and conflicts
+# with the existing torch. Install in a separate inference environment if needed.
+# vllm>=0.4.0
