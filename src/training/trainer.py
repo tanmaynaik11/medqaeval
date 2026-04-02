@@ -263,8 +263,13 @@ class SFTTrainer:
 
         unwrapped = self.model
 
-        # Save LoRA adapters (PEFT format — can be loaded with PeftModel.from_pretrained)
-        unwrapped.llm.save_pretrained(str(ckpt_dir / "lora_adapters"))
+        # Save LoRA adapters only (PEFT format).
+        # save_embedding_layers=False prevents saving the resized embedding table
+        # (~GB) alongside the tiny adapter weights (~80MB).
+        unwrapped.llm.save_pretrained(
+            str(ckpt_dir / "lora_adapters"),
+            save_embedding_layers=False,
+        )
 
         # Save projection weights separately
         torch.save(
