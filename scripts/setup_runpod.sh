@@ -33,8 +33,8 @@ pip install --upgrade pip --quiet
 # Install CUDA torch FIRST with the correct index URL.
 # PyPI torch is CPU-only — it silently overwrites RunPod's pre-installed CUDA
 # torch if listed in requirements.txt, causing the model to run on CPU.
-pip install torch==2.2.0 torchvision==0.17.0 \
-    --index-url https://download.pytorch.org/whl/cu121 \
+pip install torch==2.4.0 torchvision==0.19.0 \
+    --index-url https://download.pytorch.org/whl/cu124 \
     --quiet
 
 pip install -r requirements-gpu.txt \
