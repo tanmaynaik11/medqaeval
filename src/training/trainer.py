@@ -169,16 +169,17 @@ class SFTTrainer:
         for step, batch in enumerate(self.train_loader):
             logger.info(f"  step {step} — forward...")
             # device_map="auto" handles inter-layer device movement internally.
-            # Do NOT move batch tensors manually — pass them from CPU as-is.
-            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                outputs = self.model(
-                    input_ids      = batch["input_ids"],
-                    attention_mask = batch["attention_mask"],
-                    pixel_values   = batch.get("pixel_values"),
-                    labels         = batch["labels"],
-                )
-                # Scale loss by grad_accum so gradients average correctly
-                loss = outputs.loss / self.grad_accum
+            # No manual device movement or autocast — bitsandbytes 4-bit handles
+            # bf16 compute internally and torch.amp.autocast triggers CUDA lazy
+            # init which hangs on some RunPod driver configurations.
+            outputs = self.model(
+                input_ids      = batch["input_ids"],
+                attention_mask = batch["attention_mask"],
+                pixel_values   = batch.get("pixel_values"),
+                labels         = batch["labels"],
+            )
+            # Scale loss by grad_accum so gradients average correctly
+            loss = outputs.loss / self.grad_accum
 
             loss.backward()
 
@@ -239,13 +240,12 @@ class SFTTrainer:
         num_batches = 0
 
         for batch in self.val_loader:
-            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                outputs = self.model(
-                    input_ids      = batch["input_ids"],
-                    attention_mask = batch["attention_mask"],
-                    pixel_values   = batch.get("pixel_values"),
-                    labels         = batch["labels"],
-                )
+            outputs = self.model(
+                input_ids      = batch["input_ids"],
+                attention_mask = batch["attention_mask"],
+                pixel_values   = batch.get("pixel_values"),
+                labels         = batch["labels"],
+            )
             total_loss  += outputs.loss.item()
             num_batches += 1
 
