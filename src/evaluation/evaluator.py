@@ -140,7 +140,7 @@ class MedVisionEvaluator:
 
         # Preprocess image using BiomedCLIP preprocessor
         preprocessor = self.model.vision_encoder.preprocessor
-        pixel_values = preprocessor(image).unsqueeze(0)  # [1, 3, 224, 224]
+        pixel_values = preprocessor(image).unsqueeze(0).to(self.device)  # [1, 3, 224, 224]
 
         # Add <image> token to prompt
         full_prompt = f"<image>\n{prompt}"
