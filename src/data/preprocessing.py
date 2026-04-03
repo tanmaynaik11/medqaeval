@@ -51,20 +51,14 @@ def build_vqa_prompt(question: str, answer: Optional[str] = None) -> str:
     return prompt
 
 
-def build_mcqa_prompt(
-    question: str,
-    options: dict,
-    answer_key: Optional[str] = None,
-) -> str:
+def build_mcqa_prompt(question: str, options: dict) -> str:
     """
-    Formats a multiple-choice medical QA sample.
+    Formats a multiple-choice medical QA sample into a prompt (no answer).
+    The answer is kept separate so the collator can mask only the prompt tokens.
     options: {"a": "...", "b": "...", "c": "...", "d": "..."}
     """
     opts_str = "\n".join(f"  {k.upper()}. {v}" for k, v in options.items())
-    prompt = f"Question: {question}\n{opts_str}\nAnswer:"
-    if answer_key is not None:
-        prompt += f" {answer_key.upper()}"
-    return prompt
+    return f"Question: {question}\n{opts_str}\nAnswer:"
 
 
 # ---------- Dataset-specific Mappers ----------
@@ -90,11 +84,14 @@ def preprocess_medqausmle_sample(sample: dict) -> dict:
         answer     : str  (full text of correct option)
     """
     options = sample.get("options", {})
-    answer_key = sample.get("answer_idx", "").upper()
+    answer_key = sample.get("answer_idx", "A").upper()
     options_lower = {k.lower(): v for k, v in options.items()}
+    # Label = "A. <full option text>" so model learns the answer content
+    answer_text = options.get(answer_key, "")
+    label = f"{answer_key}. {answer_text}"
     return {
-        "prompt": build_mcqa_prompt(sample["question"], options_lower, answer_key.lower()),
-        "label": answer_key,
+        "prompt": build_mcqa_prompt(sample["question"], options_lower),
+        "label": label,
         "source": "medqa-usmle",
     }
 
@@ -108,10 +105,14 @@ def preprocess_medmcqa_sample(sample: dict) -> dict:
         "d": sample.get("opd", ""),
     }
     answer_map = {0: "a", 1: "b", 2: "c", 3: "d"}
-    answer_key = answer_map.get(sample.get("cop", -1))
+    answer_key = answer_map.get(sample.get("cop", -1), "a")
+    # Label = "A. <full option text>" so model learns the answer content,
+    # not just the letter. This gives many more unmasked tokens per sample.
+    answer_text = options.get(answer_key, "")
+    label = f"{answer_key.upper()}. {answer_text}"
     return {
-        "prompt": build_mcqa_prompt(sample["question"], options, answer_key),
-        "label": answer_key,
+        "prompt": build_mcqa_prompt(sample["question"], options),
+        "label": label,
         "explanation": sample.get("exp", ""),
         "source": "medmcqa",
     }
