@@ -106,13 +106,16 @@ def preprocess_medmcqa_sample(sample: dict) -> dict:
     }
     answer_map = {0: "a", 1: "b", 2: "c", 3: "d"}
     answer_key = answer_map.get(sample.get("cop", -1), "a")
-    # Label = "A. <full option text>" so model learns the answer content,
-    # not just the letter. This gives many more unmasked tokens per sample.
+    # Label = "A. <full option text>. <explanation>" so the model learns
+    # the correct answer AND the medical reasoning behind it.
+    # Explanation is included only when non-empty (~60% of MedMCQA samples).
     answer_text = options.get(answer_key, "")
+    explanation = sample.get("exp", "").strip()
     label = f"{answer_key.upper()}. {answer_text}"
+    if explanation:
+        label += f". {explanation}"
     return {
         "prompt": build_mcqa_prompt(sample["question"], options),
         "label": label,
-        "explanation": sample.get("exp", ""),
         "source": "medmcqa",
     }
