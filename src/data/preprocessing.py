@@ -110,7 +110,7 @@ def preprocess_medmcqa_sample(sample: dict) -> dict:
     # the correct answer AND the medical reasoning behind it.
     # Explanation is included only when non-empty (~60% of MedMCQA samples).
     answer_text = options.get(answer_key, "")
-    explanation = sample.get("exp", "").strip()
+    explanation = (sample.get("exp") or "").strip()
     label = f"{answer_key.upper()}. {answer_text}"
     if explanation:
         label += f". {explanation}"
