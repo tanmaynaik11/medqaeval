@@ -115,8 +115,8 @@ class MedVisionEvaluator:
             truncation=True,
             max_length=512,
         )
-        input_ids = inputs["input_ids"]
-        attention_mask = inputs["attention_mask"]
+        input_ids = inputs["input_ids"].to(self.device)
+        attention_mask = inputs["attention_mask"].to(self.device)
 
         out = self.model.llm.generate(
             input_ids=input_ids,
@@ -155,8 +155,8 @@ class MedVisionEvaluator:
         patches = self.model.vision_encoder.get_patch_embeddings(pixel_values)
         image_embeds = self.model.projection(patches)
 
-        input_ids      = inputs["input_ids"]
-        attention_mask = inputs["attention_mask"]
+        input_ids      = inputs["input_ids"].to(self.device)
+        attention_mask = inputs["attention_mask"].to(self.device)
 
         inputs_embeds, attention_mask, _ = self.model._merge_image_text(
             image_embeds, input_ids, attention_mask, labels=None
