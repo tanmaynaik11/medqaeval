@@ -102,10 +102,18 @@ def run_evaluation(evaluator, datasets: dict, max_samples, model_name: str) -> d
 
     # ── MedQA-USMLE ───────────────────────────────────────────────────────────
     logger.info(f"\n{'='*50}\n{model_name} — MedQA-USMLE\n{'='*50}")
+    # USMLE options are stored as a nested dict {"A": "...", "B": "..."}
+    # Flatten into separate columns so evaluate_mcqa can access them directly
+    usmle_ds = datasets["usmle_test"].map(lambda x: {
+        "opt_a": x["options"]["A"],
+        "opt_b": x["options"]["B"],
+        "opt_c": x["options"]["C"],
+        "opt_d": x["options"]["D"],
+    })
     results["usmle"] = evaluate_mcqa(
         evaluator,
-        datasets["usmle_test"],
-        option_fields={"a": "A", "b": "B", "c": "C", "d": "D"},
+        usmle_ds,
+        option_fields={"a": "opt_a", "b": "opt_b", "c": "opt_c", "d": "opt_d"},
         answer_field="answer_idx",
         max_samples=max_samples,
         desc="MedQA-USMLE",
